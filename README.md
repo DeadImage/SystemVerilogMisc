@@ -1,14 +1,14 @@
 # (System)Verilog Miscellaneous
 
-Здесь находится набор RTL-модулей на Verilog и SystemVerilog, написанных мной в разное время, в связи с учебой либо работой. Можно считать это неким подобием портфолио. Собранные здесь модули предназначаются для совершенно разных задач. Стоит обратить внимание, что модули писались в разное время, в моменты, когда у меня было разное количество опыта, в связи с чем качество отдельных модулей может различаться.
+This is a set of different modules written by me with RTL code on both Verilog and SystemVerilog. This repository can be considered both as a personal stash and a portfolio. RTL code displayed here is not homogenous, different modules were written at different times for different purposes.
 
-## Список модулей
+Most of the hardware modules have a corresponding testbench, written in SystemVerilog or Python (with cocotb). I prefer to use Questa for simulating, don't know if the behavior of certain TBs would differ in other sims.
 
-Краткое описание модулей в репозитории:
+## Short List
 
-1. **Wavelet-Transformer** - Wavelet-преобразователь. Дипломная бакалаврская работа. Набор модулей, выполняющих вейвлет-преобразование двумерного изображения. Преобразование происходит при помощи вейвлета `CDF5,3` посредством лифтинговой схемы. Всю конвейеризацию входных данных, необходимую для непрерывной подачи оных в модуль непосредственно преобразования, конструкция берет на себя.
-2. **AXI-Interconnect** - AXI-коммутатор по принципу Many-to-One, для нескольких интерфейсов типа Master и одного интерфейса типа Slave. Поддерживаются одновременные транзакции чтения и записи от одного и того же Master, есть возможность поддержки мультитранзакций при помощи `AXI ID`.
-3. **AXI Misc** - небольшой набор модулей, в той или иной степени связанных с протоколами `AXI`, `AXI-Lite`, `AXI-Stream`, некоторые - весьма косвенно.
-	- `axis_bit_reverser` - побитовое обращение данных на шине `AXI-Stream`;
-	- `gpc_axi_register` - преобразователь одиночных посылок `AXI-Stream` с шириной данных в 512 бит в `AXI-Lite` 64-бит и наоборот;
-	- `rx_timing_checker`, `tx_timing_checker` - модули, находящиеся по разные стороны передающего данные канала, предназначены для замера задержки данных в оном канале.
+Here's a short list of what's inside the repository.
+
+1. **Wavelet-Transformer** - Bachelor's graduation project. A set of modules for 2D discrete wavelet transform based on CDF5,3 wavelet. Uses lifting scheme for transformation.
+2. **AXI-Interconnect** - AXI Many-To-One Interconnect (Many Masters, One Slave). Supports simultaneous read and write transactions from the same Master. Supports multitransactions.
+3. **Test Base** - A small SystemVerilog package to provide a set of base classes for writing testbenches (not UVM).
+4. **Misc** - Just a bunch of modules without any common purpose.
