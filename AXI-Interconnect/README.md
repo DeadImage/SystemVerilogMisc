@@ -6,10 +6,6 @@ AXI4-Interconnect, initially specifically designed to be a 6-Master-to-1-Slave. 
 
 The order of Masters access to the Slave-side is determined with an arbiter. The Arbiter module is taken from Alex Forenchich, that's the only thing I did not write myself. `AxVALID` signals here act as `request` signals for the Arbiter. Arbiter's grants take form of `AxREADY` signals, issued to specific Master (Slave with respect to the Interconnect) interfaces. After the grant is issued, signals from corresponding interfaces are multiplexed into the internal regfile. From there they're applied to their output interfaces.
 
-Data flow inside the Interconnect is shown in below figure.
-
-![data_flow](img/image6.jpg)
-
 Module input parameters include:
 - `C_S_COUNT` - Number of internal Slave interfaces (outer Masters);
 - `C_ADDR_WIDTH` - Address bus width in bits;
