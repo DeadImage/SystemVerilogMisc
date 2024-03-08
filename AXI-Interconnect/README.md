@@ -1,50 +1,57 @@
 # AXI Many-To-One Interconnect
 
-## Описание
+## Overall description
 
-Коммутатор интерфейсов AXI4, изначально проектировавшийся как коммутатор 6-Master к 1-Slave. Благодаря параметризации теоретически возможно любое количество подключений интерфейсов типа Master. Основная конфигурация, тем не менее, предполагает наличие только одного Slave.
+AXI4-Interconnect, initially specifically designed to be a 6-Master-to-1-Slave. With parametrization, any number of Masters is possible. Only one Slave, though.
 
-Порядок доступа Master к Slave определяется при помощи арбитра. Арбитр принимает на вход сигналы запросов и выдает разрешение одному из них. В роли запроса здесь выступают сигналы AxVALID, поступающие от внутренних Slave интерфейсов (то есть, от Master, находящихся снаружи модуля). Разрешение, выданное арбитром, выражается в единственном сигнале AxVALID, поступающем на внутренний ведущий интерфейс и, таким образом, доходящем до внешнего ведомого интерфейса, что, в свою очередь, запускает транзакцию.
+The order of Masters access to the Slave-side is determined with an arbiter. The Arbiter module is taken from Alex Forenchich, that's the only thing I did not write myself. `AxVALID` signals here act as `request` signals for the Arbiter. Arbiter's grants take form of `AxREADY` signals, issued to specific Master (Slave with respect to the Interconnect) interfaces. After the grant is issued, signals from corresponding interfaces are multiplexed into the internal regfile. From there they're applied to their output interfaces.
 
-Ориентируясь на выданное разрешение и на номер внутреннего ведомого интерфейса, которому оно выдано, прочие сигналы с обеих сторон мультиплексируются и поступают во внутренний регистровый файл, из которого уже перенаправляются на свои выходные интерфейсы. Модуль спроектирован как конечный автомат, где одновременно может выполняться только одна операция чтения либо записи, каждая из которых разделена на стадии-состояния автомата. Состояния включат в себя ожидание, декодирование участвующих в транзакции интерфейсов при помощи арбитра, передачу данных (запись либо чтение), сброс данных в случае ошибки, завершение транзакции.
+Data flow inside the Interconnect is shown in below figure.
 
-Схема потока данных в модуле приведена на рисунке ниже.
+![data_flow](img/image6.jpg)
 
-![Поток данных в модуле коммутатора](img/image6.jpg)
+Module input parameters include:
+- `C_S_COUNT` - Number of internal Slave interfaces (outer Masters);
+- `C_ADDR_WIDTH` - Address bus width in bits;
+- `C_DATA_WIDTH` - Data bus width in bits. NOTE: Address and Data lines of every interface connected to the Interconnect must have the same width;
+- `C_STRB_WIDTH` - Strobe bus width in bits. Calculated automatically;
+- `C_ID_WIDTH` - ID bus width in bits;
+- `C_USER_WIDTH` - User data bus width in bits;
+- `C_ID_MT_USE` - A special parameter, enabling use of AXI ID for multitransaction control (1 - enabled, 0 - disabled). This feature will be described below.
 
-Стоит обратить внимание, что указанный на схеме регистровый файл не отображает реального количества регистровых задержек в модуле.
+Interconnect supports simultaneous Read and Write transactions from the same Master by default. Note that the Interconnect does not provide any address overlapping checks.
+If `C_ID_MT_USE = 1`, multitransactions are supported, but they must use AXI ID field for this feature to work properly.
 
-## Конструкция
+## Design
 
-На рисунке ниже представлен общий вид конструкции модуля.
+![module](img/image7.png)
 
-![Общая схема конструкции](img/image7.png)
+Arbiter is launched by any of the `AxVALID` signals. When Arbiter produces a Grant, multiplexing of the input from one of the internal Slave intefaces takes place.
 
-Единственный ведомый интерфейс нивелирует необходимость в каком-либо функционале проверки адресов, что, в свою очередь, дает возможность быстро производить одновременные транзакции чтения и записи для одного и того же ведущего интерфейса. Исходя из предположения, что такие одновременные транзакции допустимы в конструкции, будем производить запуск арбитража по любому из сигналов, оповещающих о готовности начать транзакцию, т.е., AxVALID. После того, как арбитр выдаст разрешение одному из входных ведомых интерфейсов, будет запущено мультиплексирование с учетом номера, полученного у арбитра.
+Multitransactions are possible, if `C_ID_MT_USE = 1`. If, once a transaction is started, `AxVALID` signal from the selected internal Slave interface is asserted again, it will start another transaction without waiting for the previous one to finish. This will occur only if the value of `AxID` field of the new transaction is the same as the first one's. The Interconnect will keep the connection between Master and Slave interfaces until all of the transactions with the same AXI ID are complete.
 
-Предусмотрена возможность мультитранзакций. Если во время уже запущенной транзакции чтения либо записи со стороны внутреннего ведомого интерфейса приходит запрос на начало еще одной транзакции, то он будет удовлетворен, в том случае, если идентификатор AXI ID новой транзакции совпадает с таковым у уже запущенной транзакции. Тогда информация о вновь прибывшей передаче будет передана по каналу адреса еще до окончания предыдущей, и коммутатор не станет закрывать соединение до тех пор, пока эта передача также не завершится. Тем не менее, стоит учитывать случай, в котором AXI ID не используется ведущей стороной, т.к. такой вариант также допустим в стандарте AXI. В таком случае от мультитранзакций приходится отказаться и выделять внешнему ведущему интерфейсу линии передачи данных только на одну транзакцию при каждом цикле арбитража. Все вышеперечисленное приводит нас к необходимости параметризации устройства.
+If AXI ID is not used, then the Interconnect should be instantiated with `C_ID_MT_USE = 0`. There will be no multitransactions feature provided in this case. It will be only one transaction from one interface per time. However, the Interconnect will still allow simultaneous Write/Read transactions to take place. For example, Master#0 issues a Write transaction request by asserting `AWVALID`, it receives a Grant from the Arbiter and starts the transaction. While this transaction is taking place, Master#0 also issues a Read transaction request by asserting `ARVALID`. This request will be granted, if the Write transaction is not finished yet. Moreover, if the Write transaction takes long enough to complete, several Read transactions can be completed. This works vice versa for Read and Write. In other words, a Read/Write transaction that triggers Arbiter request, is performed once per grant, while Read/Write transactions that appear during that first transaction taking place (let us call those Auxiliary transactions), can be performed in any number, just until that first transaction is completed.
 
-Так как транзакции чтения и записи от одного и того же инициатора проходят одновременно, если ему выдано разрешение арбитром, необходим механизм фиксации факта завершения всех начатых транзакций, который сигнализирует арбитру, что интерфейс-инициатор завершил работу с линиями передачи данных, и разрешение может быть у него отозвано. Такой механизм в предлагаемой конструкции состоит из набора счетчиков и флагов. Двумя основными флагами, сообщающими арбитру о завершении всех транзакций, являются флаг окончания записи write_finish_flag и флаг завершения чтения read_finish_flag. Режим выставления данных флагов зависит от того, собрано ли устройство в режиме мультитранзакций.
+The Interconnect uses a system of internal counters and flags to monitor the number of transactions performed. Here's a quick list.
 
-В случае работы в режиме мультитранзакций, выставление каждого из вышеописанных флагов зависит от двух счетчиков - счетчика заявленных транзакций и счетчика завершенных транзакций. Счетчик заявленных транзакций инкрементируется каждый раз, когда по каналу адреса передаются контрольные данные для очередной транзакции. Счетчик завершенных транзакций инкрементируется каждый раз, когда по каналу подтверждения (в случае транзакции записи) либо по каналу передачи данных (в случае транзакции чтения) проходит подтверждение окончания передачи. Когда значения этих счетчиков сравняются, а на входе канала адреса не будет новой транзакции, будет выставлен соответствующий флаг завершения, а прием новых транзакций будет заблокирован. Таким образом, в конфигурации мультитранзакций флаги завершения зависят от 4 счетчиков:
+Counters (synthesized and used with `C_ID_MT_USE = 1` only):
+- `write_declared_transaction_counter` - Increments when both `AWVALID` and `AWREADY` on the internal Slave-side are asserted;
+- `write_completed_transaction_counter` - Increments when both `BVALID` and `BREADY` on the internal Slave-side are asserted;
+- `read_declared_transaction_counter` - Increments when both `ARVALID` and `ARREADY` on the internal Slave-side are asserted;
+- `read_completed_transaction_counter` - Increments when `RVALID`, `RREADY`, `RLAST` on the internal Slave-side are asserted.
 
-1. write_declared_transaction_counter - счетчик заявленных транзакций записи;
-2. write_completed_transaction_counter - счетчик завершенных транзакций записи;
-3. read_declared_transaction_counter - счетчик заявленных транзакций чтения;
-4. read_completed_transaction_counter - счетчик завершенных транзакций чтения.
+Counters (synthesized and used with `C_ID_MT_USE = 0` only, used for Auxiliary transactions):
+- `declared_transaction_counter` - Increments when both `AxVALID` and `AxREADY` on the internal Slave-side are asserted;
+- `completed_transaction_counter` - Increments when both `BVALID` and `BREADY` (for Write) or `RVALID`, `RREADY`, `RLAST` (for Read) on the internal Slave-side are asserted.
 
-В случае работы в режиме без мультитранзакций, используется условный приоритет транзакций чтения над транзакциями записи. Если арбитраж был вызван транзакцией чтения либо транзакциями чтения и записи одновременно, то на время, пока идет транзакция чтения, линии транзакций записи могут работать в режиме мультитранзакций, но как только транзакция чтения завершится, прием новых транзакций записи прекращается. В случае, когда арбитраж вызван исключительно транзакцией записи, этот принцип работает в обратную сторону. В любом случае, если основная транзакция всегда одна, то вспомогательных транзакций может быть несколько. Для их регулирования используется пара счетчиков по принципу, аналогичному обозначенному выше для режима мультитранзакций:
+Flags:
+- `write_finish_flag` - With `C_ID_MT_USE = 1`, asserted when `write_declared_transaction_counter` == `write_completed_transaction_counter`. With `C_ID_MT_USE = 0`, asserted when `declared_transaction_counter` == `completed_transaction_counter` if Write transaction is auxuliary, after the first transaction otherwise;
+- `read_finish_flag` - With `C_ID_MT_USE = 1`, asserted when `read_declared_transaction_counter` == `read_completed_transaction_counter`. With `C_ID_MT_USE = 0`, asserted when `declared_transaction_counter` == `completed_transaction_counter` if Read transaction is auxuliary, after the first transaction otherwise.
 
-1. declared_transaction_counter - счетчик заявленных вспомогательных транзакций;
-2. completed_transaction_counter - счетчик завершенных вспомогательных транзакций.
+The Interconnect uses exactly one register slice for storing intermediate data. It is needed to store data in case the other side isn't ready to accept it.
 
-Равенство значений данных счетчиков индуцирует выставление флага завершения того типа транзакций, который считается основным в рамках текущей передачи. Основная транзакция может быть только одна, поэтому соответствующий флаг выставляется сразу после ее завершения.
+Interconnect logic uses simple FSM with only three states: `ST_IDLE`, `ST_TRANSACTION`, `ST_FINISH`.
 
-Для быстрой работы и гарантированной доставки данных в предлагаемой конструкции предусмотрен один регистровый слой, который проходят данные. Данный срез необходим на случай, если принимающая данные сторона окажется не готова к очередному пакету и не выставит сигнал READY. Тогда данные будут задержаны внутри коммутатора, и передача возобновится на следующий такт после выставления приемной стороной сигнала READY.
-
-Регулировка режимов работы устройства осуществляется при помощи конечного автомата, включающего три состояния:
-
-1. состояние покоя ST_IDLE - транзакции не осуществляются, разрешений передачи нет ни у кого из внешних ведущих интерфейсов, арбитраж осуществляется. Как только арбитр выдаст разрешение одному из инициаторов транзакций, автомат перейдет в следующее состояние;
-2. состояние передачи ST_TRANSACTION - транзакции осуществляет интерфейс, получивший разрешение в результате арбитража, занимая линии передачи данных. Переход в следующее состояние происходит, когда выставлены оба флага завершения;
-3. состояние завершения ST_FINISH - происходит сброс счетчиков и флагов, блокируется доступ к линиям данных, возобновляется арбитраж. Состояние длится один такт, после чего происходит переход в состояние покоя.
-
+1. `ST_IDLE` - No transactions, no grants, Arbiter is active and can receive requests. State changes to `ST_TRANSACTION` once the Arbiter issues a Grant;
+2. `ST_TRANSACTION` - Interface that received a Grant, performs its transaction(s). When all of those are finished, state is changed to `ST_FINISH`;
+3. `ST_FINISH` - Takes exactly one clock cycle. All of the internal flags are deasserted, counters dropped to 0. The next state is `ST_IDLE`.
