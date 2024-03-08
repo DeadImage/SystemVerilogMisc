@@ -1,3 +1,11 @@
+/*
+
+Works in pair with tx_timing_checker. Receives a signal from tx_timing_checker, starts counter, waits till
+data arrives its way. Counter value is inserted into data.
+
+This thing was made sepcifically to check, how much time it takes for CMAC controllers to send and receive one beat of data.
+
+*/
 module rx_timing_checker # (
     parameter AXIS_DATA_WIDTH = 512,
     parameter AXIS_KEEP_WIDTH = AXIS_DATA_WIDTH / 8

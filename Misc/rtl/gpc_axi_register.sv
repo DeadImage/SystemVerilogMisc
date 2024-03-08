@@ -1,3 +1,9 @@
+/*
+
+Serves as an AXI-Lite - AXI-Stream converter, where AXI-Stream Data Width > AXI-Lite Data Width.
+Converts data both ways.
+
+*/
 module gpc_axi_register # (
 	// Address Bus width in AXI-Lite interface
 	parameter AXIL_ADDR_WIDTH = 64,

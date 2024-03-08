@@ -1,3 +1,11 @@
+/*
+
+Works in pair with rx_timing_checker. When a transaction is detected (TREADY & TVALID), sends request signal to
+rx_timing_checker, so it would start to count.
+
+This thing was made sepcifically to check, how much time it takes for CMAC controllers to send and receive one beat of data.
+
+*/
 module tx_timing_checker
 (
     input wire                         clk,

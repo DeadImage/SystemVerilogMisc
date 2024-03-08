@@ -1,3 +1,8 @@
+/*
+
+Performs bit-wise reversion of the data supplied through AXI-Stream interface
+
+*/
 module axis_bit_reverser # (
     // Data Bus width in AXI-Stream
     parameter AXIS_DATA_WIDTH = 512,
